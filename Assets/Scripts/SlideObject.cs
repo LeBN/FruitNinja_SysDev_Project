@@ -1,65 +1,139 @@
 using UnityEngine;
+using EzySlice;
 using System.Collections;
 using System.Collections.Generic;
-using EzySlice;
-using UnityEngine.InputSystem;
-
 
 public class SlideObject : MonoBehaviour
 {
     public Transform startSlicePoint;
     public Transform endSlicePoint;
     public LayerMask sliceableLayer;
-    public VelocityEstimator velocityEstimator;
+    public Material crossSectionMaterial;
+    public float cutForce = 2000f;
 
-    [SerializeField] public Material crossSectionMaterial;
-    public float cutForce = 2000;
+    public GameObject explosionVFX;
+    public AudioClip fruitCutSound;
+    public AudioClip bombExplosionSound;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public string bombTag = "Bomb";
+    public string startButtonTag = "StartButton";
+    public GameObject gameManager;
+
+    private AudioSource audioSource;
+
+    // Liste des objets deja coupes recemment
+    private HashSet<GameObject> recentlySliced = new HashSet<GameObject>();
+    private float sliceCooldown = 0.15f; // 150 ms d'intervalle de securite
+
+    private void Start()
     {
-        
+        audioSource = gameObject.AddComponent<AudioSource>();
+
+        if (gameManager == null)
+        {
+            GameManager gmSearch = GameObject.FindObjectOfType<GameManager>();
+            if (gmSearch != null)
+                gameManager = gmSearch.gameObject;
+        }
     }
 
-    // Correction : FixedUpdate doit commencer par une majuscule
     void FixedUpdate()
     {
-        bool hasHit = Physics.Linecast(startSlicePoint.position, endSlicePoint.position, out RaycastHit hit, sliceableLayer);
-        if (hasHit)
+        if (Physics.Linecast(startSlicePoint.position, endSlicePoint.position, out RaycastHit hit, sliceableLayer))
         {
             GameObject target = hit.collider.gameObject;
-            SliceObject(target);
+            if (!recentlySliced.Contains(target))
+            {
+                StartCoroutine(RegisterSliceCooldown(target)); // Marque cet objet comme "deja coupe" pendant un court delai
+                SliceObject(target);
+            }
         }
+    }
+
+    private IEnumerator RegisterSliceCooldown(GameObject obj)
+    {
+        recentlySliced.Add(obj);
+        yield return new WaitForSeconds(sliceCooldown);
+        recentlySliced.Remove(obj);
     }
 
     public void SliceObject(GameObject target)
     {
-        Vector3 planePoint = target.transform.position;
-        Vector3 planeNormal = Vector3.up;
+        if (target == null) return;
 
-        SlicedHull hull = target.Slice(planePoint, planeNormal, crossSectionMaterial);
+        GameManager gm = gameManager != null ? gameManager.GetComponent<GameManager>() : null;
 
-        if (hull == null)
+        // Fruit de demarrage
+        if (target.CompareTag(startButtonTag))
         {
-            Debug.Log("EzySlice ne parvient pas à découper " + target.name);
+            if (gm != null)
+                gm.StartGame();
+
+            if (explosionVFX != null)
+                Instantiate(explosionVFX, target.transform.position, Quaternion.identity);
+
+            PlaySound(fruitCutSound);
+            Destroy(target);
             return;
         }
+
+        // Bombe
+        if (target.CompareTag(bombTag))
+        {
+            PlaySound(bombExplosionSound);
+
+            if (explosionVFX != null)
+                Instantiate(explosionVFX, target.transform.position, Quaternion.identity);
+
+            if (gm != null)
+            {
+                gm.AddScore(-3);
+                gm.ResetFruitsOnBomb();
+            }
+
+            Destroy(target);
+            return;
+        }
+
+        // Fruit normal
+        SlicedHull hull = target.Slice(target.transform.position, Vector3.up, crossSectionMaterial);
+        if (hull == null) return;
 
         GameObject upperHull = hull.CreateUpperHull(target, crossSectionMaterial);
         GameObject lowerHull = hull.CreateLowerHull(target, crossSectionMaterial);
 
-        AddPhysics(upperHull);
-        AddPhysics(lowerHull);
+        Rigidbody originalRb = target.GetComponent<Rigidbody>();
+        Vector3 originalVelocity = originalRb ? originalRb.linearVelocity : Vector3.zero;
+        Vector3 originalAngularVelocity = originalRb ? originalRb.angularVelocity : Vector3.zero;
+
+        AddPhysicsToSlice(upperHull, originalVelocity, originalAngularVelocity);
+        AddPhysicsToSlice(lowerHull, originalVelocity, originalAngularVelocity);
+
+        PlaySound(fruitCutSound);
+
+        if (gm != null)
+            gm.AddScore(1);
 
         Destroy(target);
     }
 
-    private void AddPhysics(GameObject slicedObject)
+    private void AddPhysicsToSlice(GameObject slicedObject, Vector3 inheritedVelocity, Vector3 inheritedAngularVelocity)
     {
+        if (slicedObject == null) return;
+
         Rigidbody rb = slicedObject.AddComponent<Rigidbody>();
-        MeshCollider collider = slicedObject.AddComponent<MeshCollider>();
-        collider.convex = true;
+        SphereCollider sc = slicedObject.AddComponent<SphereCollider>();
+
+        rb.linearVelocity = inheritedVelocity;
+        rb.angularVelocity = inheritedAngularVelocity;
         rb.AddExplosionForce(cutForce, slicedObject.transform.position, 5f);
+        rb.AddTorque(Random.insideUnitSphere * 3f, ForceMode.Impulse);
+        Destroy(slicedObject, 8f);
     }
 
+    private void PlaySound(AudioClip clip)
+    {
+        if (clip != null && audioSource != null)
+            audioSource.PlayOneShot(clip);
+    }
 }
