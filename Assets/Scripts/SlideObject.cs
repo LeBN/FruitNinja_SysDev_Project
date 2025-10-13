@@ -11,9 +11,12 @@ public class SlideObject : MonoBehaviour
     public Material crossSectionMaterial;
     public float cutForce = 2000f;
 
+
     public GameObject explosionVFX;
     public AudioClip fruitCutSound;
     public AudioClip bombExplosionSound;
+    public GameObject fruitJuiceFXPrefab;
+
 
     public string bombTag = "Bomb";
     public string startButtonTag = "StartButton";
@@ -63,7 +66,7 @@ public class SlideObject : MonoBehaviour
 
         GameManager gm = gameManager != null ? gameManager.GetComponent<GameManager>() : null;
 
-        // Fruit de demarrage
+        // Fruit de démarrage
         if (target.CompareTag(startButtonTag))
         {
             if (gm != null)
@@ -111,11 +114,34 @@ public class SlideObject : MonoBehaviour
 
         PlaySound(fruitCutSound);
 
+        // Effet de jus de fruit
+        if (fruitJuiceFXPrefab != null)
+        {
+            GameObject fx = Instantiate(fruitJuiceFXPrefab, target.transform.position + Vector3.up * 0.2f, Quaternion.identity);
+            fx.transform.parent = null;
+
+            var ps = fx.GetComponent<ParticleSystem>();
+            if (ps != null)
+            {
+                var main = ps.main;
+
+                Renderer rend = target.GetComponent<Renderer>();
+                if (rend != null)
+                    main.startColor = rend.material.color;
+
+                ps.Play();
+            }
+
+            Destroy(fx, 2f);
+        }
+
+
         if (gm != null)
             gm.AddScore(1);
 
         Destroy(target);
     }
+
 
     private void AddPhysicsToSlice(GameObject slicedObject, Vector3 inheritedVelocity, Vector3 inheritedAngularVelocity)
     {

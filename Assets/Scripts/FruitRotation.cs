@@ -14,12 +14,7 @@ public class FruitRotation : MonoBehaviour
         // Si un Rigidbody existe, on lui applique une rotation aléatoire initiale
         if (rb != null)
         {
-            Vector3 randomTorque = new Vector3(
-                Random.Range(-1f, 1f),
-                Random.Range(-1f, 1f),
-                Random.Range(-1f, 1f)
-            ) * rotationSpeed;
-
+            Vector3 randomTorque = Random.insideUnitSphere * (rotationSpeed * 0.1f);
             rb.AddTorque(randomTorque, ForceMode.VelocityChange);
         }
     }
@@ -29,7 +24,13 @@ public class FruitRotation : MonoBehaviour
         // Si pas de Rigidbody, on fait tourner manuellement
         if (rb == null)
         {
-            transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.Self);
+            Vector3 randomAxis = new Vector3(
+                Mathf.Sin(Time.time * 1.3f),
+                1f,
+                Mathf.Cos(Time.time * 0.8f)
+            ).normalized;
+
+            transform.Rotate(randomAxis * rotationSpeed * Time.deltaTime, Space.Self);
         }
     }
 }
