@@ -56,7 +56,7 @@ public class FruitSpawnerManager : MonoBehaviour
         GameObject obj = Instantiate(prefabToSpawn, spawnPos, Quaternion.identity);
 
         // Auto-destruction apres 10 secondes
-        Destroy(obj, 10f);
+        Destroy(obj, 1.5f);
 
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
