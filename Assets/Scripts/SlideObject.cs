@@ -3,6 +3,7 @@ using EzySlice;
 using System.Collections;
 using System.Collections.Generic;
 
+
 public class SlideObject : MonoBehaviour
 {
     public Transform startSlicePoint;
@@ -62,6 +63,8 @@ public class SlideObject : MonoBehaviour
 
     public void SliceObject(GameObject target)
     {
+
+        
         if (target == null) return;
 
         GameManager gm = gameManager != null ? gameManager.GetComponent<GameManager>() : null;

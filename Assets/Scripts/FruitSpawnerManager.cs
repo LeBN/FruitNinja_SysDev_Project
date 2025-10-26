@@ -9,6 +9,8 @@ public class FruitSpawnerManager : MonoBehaviour
     [Header("Objets a lancer")]
     public GameObject[] fruitPrefabs;
     public GameObject bombPrefab;
+    public GameObject goldenFruitPrefab;
+
 
     [Header("Parametres de spawn")]
     [Range(0f, 1f)]
@@ -19,34 +21,55 @@ public class FruitSpawnerManager : MonoBehaviour
 
     private bool spawningActive = false;
 
+    public bool enableBombs = true;
+    public int maxObjectsPerSpawn = 3;
+
+
     private IEnumerator SpawnRoutine()
     {
-        while (spawningActive)
+        while (spawningEnabled)
         {
-            yield return new WaitForSeconds(spawnInterval + Random.Range(-minRandomDelay, minRandomDelay));
+            // Nombre d’objets à spawn par vague (1 à maxObjectsPerSpawn)
+            int fruitsToSpawn = Random.Range(1, maxObjectsPerSpawn + 1);
 
-            // Choisit combien d’objets spawnent cette fois (1 à 3)
-            int objectsToSpawn = Random.Range(1, 4); // 1, 2 ou 3
-            for (int i = 0; i < objectsToSpawn; i++)
+            for (int i = 0; i < fruitsToSpawn; i++)
             {
                 SpawnRandomObject();
-                yield return new WaitForSeconds(0.2f); // petit délai entre les spawns d’un même groupe
             }
+
+            yield return new WaitForSeconds(spawnInterval);
         }
     }
+
 
     private void SpawnRandomObject()
     {
         if (spawners.Length == 0) return;
 
         Transform spawner = spawners[Random.Range(0, spawners.Length)];
+
+        float bombChance = bombSpawnChance;
+        float goldenChance = 0.10f; // 10 % de chance d’avoir un fruit doré
+
         GameObject prefabToSpawn = null;
 
-        // Chance de bombe
-        if (bombPrefab != null && Random.value < bombSpawnChance)
+        float rand = Random.value;
+
+        // Bombe (si activée)
+        if (enableBombs && bombPrefab != null && rand < bombChance)
+        {
             prefabToSpawn = bombPrefab;
+        }
+        // Fruit doré
+        else if (goldenFruitPrefab != null && rand < bombChance + goldenChance)
+        {
+            prefabToSpawn = goldenFruitPrefab;
+        }
+        // Fruit normal
         else if (fruitPrefabs.Length > 0)
+        {
             prefabToSpawn = fruitPrefabs[Random.Range(0, fruitPrefabs.Length)];
+        }
 
         if (prefabToSpawn == null) return;
 
@@ -54,19 +77,25 @@ public class FruitSpawnerManager : MonoBehaviour
         spawnPos.y += 0.5f;
 
         GameObject obj = Instantiate(prefabToSpawn, spawnPos, Quaternion.identity);
-
-        // Auto-destruction apres 10 secondes
-        Destroy(obj, 1.5f);
+        Destroy(obj, 10f); // auto-destruction après 10 secondes
 
         Rigidbody rb = obj.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            // Direction verticale avec tres legere deviation
-            Vector3 launchDir = Vector3.up + new Vector3(Random.Range(-0.1f, 0.1f), 0, Random.Range(-0.1f, 0.1f));
+            Vector3 launchDir = Vector3.up + new Vector3(
+                Random.Range(-0.1f, 0.1f),
+                0,
+                Random.Range(-0.1f, 0.1f)
+            );
+
             rb.AddForce(launchDir.normalized * launchForce, ForceMode.VelocityChange);
             rb.AddTorque(Random.insideUnitSphere * 3f, ForceMode.VelocityChange);
         }
+
+        Debug.Log("Spawned object: " + obj.name);
     }
+
+
 
     public void StartSpawning()
     {
